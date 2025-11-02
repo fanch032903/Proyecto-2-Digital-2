@@ -1,4 +1,11 @@
 /* USER CODE BEGIN Header */
+/********************************************/
+//Universidad del Valle de Guatemala
+//BE3029 - Electrónica Digital 2
+// Paulina Martinez- 23143   
+// Fátima Camposeco-23122                            
+// Proyecto 2 
+//********************************************/
 /**
   **********
   * @file           : main.c
@@ -82,11 +89,13 @@ static void MX_I2C1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+/*Transmitir texto por UART */
 void transmit_uart(char *string) {
 	uint8_t len = strlen(string);
 	HAL_UART_Transmit (&huart2, (uint8_t*)string, len, 200);
 }
 
+/*Transmitir buffer por UART */
 static uint16_t uart_readline(char *dst, uint16_t maxlen) {
     uint8_t ch;
     uint16_t idx = 0;
@@ -150,6 +159,7 @@ int main(void)
   {
 	  //HAL_I2C_Master_Receive(&hi2c1, (deviceAddress << 1) | 0x01, (uint8_t*)RX_I2C, 1, HAL_MAX_DELAY);
 
+	  /* Menú */
 	  char buff=0;
 	  transmit_uart("\r\n===== Menu ===== \r\n");
 	  transmit_uart("1) Controlar dispositivo SPI \r\n");
@@ -202,26 +212,28 @@ int main(void)
 
 	      /* Debug */
 	      char txt[60];
-	      sprintf(txt, "DEBUG -> led=%d  tiempo=%d\r\n", led, tiempo);
+	      sprintf(txt, "Valor obtenido: led=%d  tiempo=%d\r\n", led, tiempo);
 	      transmit_uart(txt);
 
 
-	      if (led >= 1 && led <= 3 && tiempo >= 10 && tiempo <= 5000) {
+	      if (led >= 1 && led <= 3 && tiempo >= 10 && tiempo <= 5000) {  /* Condiciones para LED y tiempo */
 
+	    	  /* Bytes para guardar datos */
 	          uint8_t frame[3];
 	          frame[0] = led;
 	          frame[1] = (uint8_t)(tiempo & 0xFF);
 	          frame[2] = (uint8_t)(tiempo >> 8);
 
+	          /* Comunicación SPI */
 	          HAL_GPIO_WritePin(ESP32_CS_GPIO_Port, ESP32_CS_Pin, GPIO_PIN_RESET);
 	          HAL_SPI_Transmit(&hspi1, frame, 3, HAL_MAX_DELAY);
 	          HAL_GPIO_WritePin(ESP32_CS_GPIO_Port, ESP32_CS_Pin, GPIO_PIN_SET);
 
-	          transmit_uart("Comando enviado.\r\n");
+	          transmit_uart("Comando enviado.\r\n");  /* Asegurarse que el comando se haya enviado */
 
 	      }
 	      else {
-	          transmit_uart("ERROR: Formato o rangos invalidos. Usa: 1,500, 2,1500, 3,400 \r\n");
+	          transmit_uart("ERROR: Formato o rangos invalidos. Usa: 1,500, 2,1500, 3,400 \r\n");  /* Dato recibido no es válido */
 	          transmit_uart(comando);
 
 	      }
@@ -229,20 +241,23 @@ int main(void)
 
 
 	  /*Opción 2: Comunicación I2C  */
-	  if(buff== '2'){
-		  transmit_uart("Comunicacion I2C \r\n");
+	  if (buff == '2') {
+	      transmit_uart("Comunicacion I2C \r\n");
 
-		    // Leer 1 byte del esclavo
-		    if (HAL_I2C_Master_Receive(&hi2c1, (deviceAddress << 1) | 0x01, (uint8_t*)RX_I2C, 1, HAL_MAX_DELAY) == HAL_OK) {
-		        char texto[60];
-		        sprintf(texto, "Valor ADC recibido: %u\r\n", RX_I2C[0]);
-		        transmit_uart(texto);
-		        HAL_Delay(500);
+	      if (HAL_I2C_Master_Receive(&hi2c1, deviceAddress << 1, RX_I2C, 1, 5) == HAL_OK) {
+	          HAL_Delay(2); //Delay para que onRequest lea el valor actual del pot
+	          HAL_I2C_Master_Receive(&hi2c1, deviceAddress << 1, RX_I2C, 1, 5);
 
-		    } else {
-		        transmit_uart("ERROR I2C: no responde el esclavo.\r\n");
-		    }
-		}
+	          char texto[60];
+	          sprintf(texto, "Valor ADC recibido: %u\r\n", RX_I2C[0]);  /* Mostrar valor del pot */
+	          transmit_uart(texto);
+	      }
+	      else {
+	    	  transmit_uart("ERROR I2C (no ACK)\r\n");
+	      }
+	      }
+
+
 
     /* USER CODE END WHILE */
 
