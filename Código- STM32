@@ -257,6 +257,11 @@ int main(void)
 	      }
 	      }
 
+		/*Opcion 3: No selecciona 1 o 2*/
+			  else {
+				  transmit_uart("Seleccione una opcion válida");
+			  }
+
 
 
     /* USER CODE END WHILE */
