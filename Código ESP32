@@ -1,0 +1,163 @@
+//********************************************/
+//Universidad del Valle de Guatemala
+//BE3029 - Electrónica Digital 2
+// Fátima Camposeco-23122
+// Paulina Martinez- 23143                               
+// Proyecto 2 
+//MCU: ESP32 dev kit 1.0
+//********************************************/
+
+//===Librerías ===
+#include <Arduino.h>
+#include <stdint.h>
+#include <ESP32SPISlave.h>
+#include <Wire.h>
+#include <LiquidCrystal.h>
+
+//===Pantalla LCD ===
+#define en 33
+#define rs 32
+#define d4 25
+#define d5 26
+#define d6 27
+#define d7 14
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+//===Pines LEDs ===
+#define rojo 0
+#define amarillo 2
+#define verde 15
+
+//===Potenciometro ===
+#define pot1 34
+
+//===I2C ===
+#define I2C_DEV_ADDR 0x55
+
+ESP32SPISlave slave;
+
+//===Buffer===
+static constexpr size_t BUFFER_SIZE = 32;
+uint8_t rx_buf[BUFFER_SIZE];
+
+//===Variables===
+uint8_t ultimoLED = 0;
+uint16_t ultimoTiempo = 0;
+volatile uint8_t adc = 0;
+volatile uint8_t raw = 0;
+float volt = 0;
+
+//===Prototipo de Funciones ===
+void onRequest();
+
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(rojo, OUTPUT);
+  pinMode(amarillo, OUTPUT);
+  pinMode(verde, OUTPUT);
+
+  analogReadResolution(8);
+  analogSetPinAttenuation(pot1, ADC_11db);//para leer hasta 3.3V
+
+  slave.setDataMode(SPI_MODE0);
+  slave.setQueueSize(1);
+  slave.begin(VSPI, 18, 19, 23, 5);//Pines para la comunicación
+
+  slave.queue(NULL, rx_buf, BUFFER_SIZE);
+  slave.trigger();
+  
+  //===I2C ===
+  Wire.begin((uint8_t)I2C_DEV_ADDR);
+  Wire.onRequest(onRequest);
+  
+  //===LCD ===
+  lcd.begin(16, 2);
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Pot1: Pot1: Led:");
+  delay(700);
+  Serial.println("==== ESP32 SPI SLAVE LISTO ====");
+  Serial.println("Esperando comandos del STM32...");
+}
+
+void loop() {
+
+  //===Comunicación SPI===
+  if (slave.hasTransactionsCompletedAndAllResultsHandled()) {
+    memset(rx_buf, 0, BUFFER_SIZE);
+    slave.queue(NULL, rx_buf, BUFFER_SIZE);
+    slave.trigger();
+  }
+
+if (slave.hasTransactionsCompletedAndAllResultsReady(1)) {
+
+    uint8_t led = rx_buf[0];
+    uint16_t tiempo = rx_buf[1] | (rx_buf[2] << 8);
+
+    Serial.print("SPI Recibido: LED:");
+    Serial.print(led);
+    Serial.print(" Tiempo=");
+    Serial.println(tiempo);
+
+    //===LEDs depende del comando===
+    switch (led) {
+      case 1: digitalWrite(rojo, HIGH); delay(tiempo); digitalWrite(rojo, LOW); break;
+      case 2: digitalWrite(amarillo, HIGH); delay(tiempo); digitalWrite(amarillo, LOW); break;
+      case 3: digitalWrite(verde, HIGH); delay(tiempo); digitalWrite(verde, LOW); break;
+    }
+
+    //Guardar valores
+    ultimoLED = led;
+    ultimoTiempo = tiempo;
+
+    //Vaciar buffer
+    memset(rx_buf, 0, BUFFER_SIZE);
+
+    //Cola del buffer
+    slave.queue(NULL, rx_buf, BUFFER_SIZE);
+    slave.trigger();
+}
+
+ //Conversión del Pot
+  adc = analogRead(pot1); 
+  volt = (adc * 3.3) / 255.0;
+
+  static unsigned long last = 0;
+
+   //===Imprimir en la LCD==
+  if (millis() - last > 300) {
+    last = millis();
+    raw=adc;
+    lcd.setCursor(0,1);
+    lcd.print("    ");
+    lcd.setCursor(0,1);
+    lcd.print(adc);
+
+    lcd.setCursor(6,1);
+    lcd.print("    ");
+    lcd.setCursor(6,1);
+    lcd.print(volt,2);
+    lcd.print("V");
+
+    lcd.setCursor(13,1);
+    lcd.print("    ");
+    lcd.setCursor(13,1);
+    if (ultimoLED == 1) lcd.print("R");
+    else if (ultimoLED == 2) lcd.print("A");
+    else if (ultimoLED == 3) lcd.print("V");
+    else lcd.print("-");
+    
+  }
+  delay(20);
+}
+
+//Funciones 
+void onRequest() {
+  raw = analogRead(pot1);
+  Wire.write(raw);
+  Serial.print("Valor potenciómetro: ");
+  Serial.println(raw);
+}
+
