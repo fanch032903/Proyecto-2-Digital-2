@@ -78,7 +78,7 @@ void setup() {
   lcd.begin(16, 2);
   lcd.clear();
   lcd.setCursor(0,0);
-  lcd.print("Pot1: Pot1: Led:");
+  lcd.print("ADC: Volt: Led:");
   delay(700);
   Serial.println("==== ESP32 SPI SLAVE LISTO ====");
   Serial.println("Esperando comandos del STM32...");
